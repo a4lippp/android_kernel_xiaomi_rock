@@ -70,12 +70,12 @@ jobs:
 
       - name: "Clone vendor modules"
         run: |
-          # EXT_MODULES di rock.config pakai path ../mediatek-modules/...
-          # jadi clone di sebelah common/ dengan nama mediatek-modules
+          # EXT_MODULES di rock.config pakai path ../vendor/mediatek/kernel_modules/...
+          # jadi clone di sebelah common/ dengan nama vendor/mediatek/kernel_modules
           git clone --depth=1 \
             https://github.com/Asmodeus7999/MTK_kernel_modules \
             -b rock-u-oss \
-            mediatek-modules
+            vendor/mediatek/kernel_modules
 
       - name: "Setup SukiSU-Ultra"
         working-directory: ${{ env.KERNEL_DIR }}
@@ -111,7 +111,9 @@ jobs:
 
       - name: "Build kernel"
         run: |
+          MODS="${{ env.WORK_DIR }}/vendor/mediatek/kernel_modules"
           LTO=thin \
+          EXT_MODULES="${MODS}/gpu ${MODS}/met_drv_v3 ${MODS}/connectivity/common ${MODS}/connectivity/conninfra ${MODS}/connectivity/connfem ${MODS}/connectivity/wlan/adaptor ${MODS}/connectivity/wlan/core/gen4m ${MODS}/connectivity/bt/mt66xx/wmt ${MODS}/connectivity/gps/gps_stp ${MODS}/connectivity/gps/data_link/plat/v010 ${MODS}/connectivity/gps/data_link/plat/v030 ${MODS}/connectivity/gps/data_link/plat/v050 ${MODS}/connectivity/gps/gps_pwr ${MODS}/connectivity/gps/gps_scp ${MODS}/connectivity/fmradio" \
           BUILD_CONFIG=${{ env.KERNEL_DIR }}/build.config.rock \
           build/build.sh -j$(nproc)
 
