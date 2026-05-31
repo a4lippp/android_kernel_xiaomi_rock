@@ -29,28 +29,35 @@ jobs:
         with:
           swap-size-gb: 10
 
-      - name: "Clone kernel source"
-        run: |
-          git clone --recursive --branch ${{ env.KERNEL_BRANCH }} \
-            ${{ env.KERNEL_REPO }} ${{ env.KERNEL_DIR }} --depth=1
-
       - name: "Initialize AOSP repo and toolchains"
         run: |
+          # repo sync first to get build system + prebuilts
           repo init -u https://android.googlesource.com/kernel/manifest \
             -b common-android12-5.10 --depth=1
           repo sync --optimized-fetch --prune -j$(nproc)
+
+          # Remove .repo and AOSP common, we use our own kernel below
           rm -rf .repo common
 
+          # Download custom clang
           aria2c -x 16 -s 16 -o clang.tar.gz \
             "https://github.com/topnotchfreaks/clang/releases/download/v1.0.0/clang-r547379.tar.gz"
           mkdir -p prebuilts/clang/host/linux-x86/clang-r547379
           tar -xzf clang.tar.gz -C prebuilts/clang/host/linux-x86/clang-r547379
           rm -f clang.tar.gz
 
+          # Remove unused clangs to save space
           rm -rf prebuilts/clang/host/linux-x86/clang-3289846
           rm -rf prebuilts/clang/host/linux-x86/clang-r450784e
           rm -rf prebuilts/clang/host/linux-x86/clang-stable
 
+      - name: "Clone kernel source"
+        run: |
+          # Clone after repo sync so common/ dir is clean
+          git clone --recursive --branch ${{ env.KERNEL_BRANCH }} \
+            ${{ env.KERNEL_REPO }} ${{ env.KERNEL_DIR }} --depth=1
+
+          # Patch build configs (must be after clone)
           sed -i \
             -e 's/^BRANCH=.*/BRANCH=android12-5.10/' \
             -e 's/^CLANG_VERSION=.*/CLANG_VERSION=r547379/' \
@@ -72,19 +79,19 @@ jobs:
           echo "CONFIG_LOCALVERSION_AUTO=n" >> "$CONFIG"
 
           cat >> "$CONFIG" << 'EOF'
-          CONFIG_KSU=y
-          CONFIG_KPROBES=y
-          CONFIG_HAVE_KPROBES=y
-          CONFIG_KPROBE_EVENTS=y
-          CONFIG_OVERLAY_FS=y
-          CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y
-          CONFIG_TCP_CONG_BBR=y
-          CONFIG_TCP_CONG_WESTWOOD=y
-          CONFIG_DEFAULT_WESTWOOD=y
-          CONFIG_TMPFS_XATTR=y
-          CONFIG_TMPFS_POSIX_ACL=y
-          CONFIG_KALLSYMS=y
-          EOF
+CONFIG_KSU=y
+CONFIG_KPROBES=y
+CONFIG_HAVE_KPROBES=y
+CONFIG_KPROBE_EVENTS=y
+CONFIG_OVERLAY_FS=y
+CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y
+CONFIG_TCP_CONG_BBR=y
+CONFIG_TCP_CONG_WESTWOOD=y
+CONFIG_DEFAULT_WESTWOOD=y
+CONFIG_TMPFS_XATTR=y
+CONFIG_TMPFS_POSIX_ACL=y
+CONFIG_KALLSYMS=y
+EOF
 
           echo 'KBUILD_CFLAGS += -Wno-implicit-function-declaration' >> Makefile
 
@@ -98,7 +105,6 @@ jobs:
         run: |
           git clone --depth=1 https://github.com/osm0sis/AnyKernel3 AnyKernel3
 
-          # Strip osm0sis demo device blocks, set for rock
           sed -i \
             -e 's/do\.devicecheck=1/do.devicecheck=0/' \
             -e 's/^supported\.versions=.*/supported.versions=/' \
