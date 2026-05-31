@@ -31,13 +31,20 @@ jobs:
 
       - name: "Initialize AOSP repo and toolchains"
         run: |
-          # repo sync first to get build system + prebuilts
           repo init -u https://android.googlesource.com/kernel/manifest \
             -b common-android12-5.10 --depth=1
-          repo sync --optimized-fetch --prune -j$(nproc)
 
-          # Remove .repo and AOSP common, we use our own kernel below
-          rm -rf .repo common
+          # Exclude kernel/common — we use our own kernel source
+          mkdir -p .repo/local_manifests
+          cat > .repo/local_manifests/remove-common.xml << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <manifest>
+            <remove-project name="kernel/common"/>
+          </manifest>
+          EOF
+
+          repo sync --optimized-fetch --prune -j$(nproc)
+          rm -rf .repo
 
           # Download custom clang
           aria2c -x 16 -s 16 -o clang.tar.gz \
@@ -79,19 +86,19 @@ jobs:
           echo "CONFIG_LOCALVERSION_AUTO=n" >> "$CONFIG"
 
           cat >> "$CONFIG" << 'EOF'
-          CONFIG_KSU=y
-          CONFIG_KPROBES=y
-          CONFIG_HAVE_KPROBES=y
-          CONFIG_KPROBE_EVENTS=y
-          CONFIG_OVERLAY_FS=y
-          CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y
-          CONFIG_TCP_CONG_BBR=y
-          CONFIG_TCP_CONG_WESTWOOD=y
-          CONFIG_DEFAULT_WESTWOOD=y
-          CONFIG_TMPFS_XATTR=y
-          CONFIG_TMPFS_POSIX_ACL=y
-          CONFIG_KALLSYMS=y
-          EOF
+CONFIG_KSU=y
+CONFIG_KPROBES=y
+CONFIG_HAVE_KPROBES=y
+CONFIG_KPROBE_EVENTS=y
+CONFIG_OVERLAY_FS=y
+CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y
+CONFIG_TCP_CONG_BBR=y
+CONFIG_TCP_CONG_WESTWOOD=y
+CONFIG_DEFAULT_WESTWOOD=y
+CONFIG_TMPFS_XATTR=y
+CONFIG_TMPFS_POSIX_ACL=y
+CONFIG_KALLSYMS=y
+EOF
 
           echo 'KBUILD_CFLAGS += -Wno-implicit-function-declaration' >> Makefile
 
