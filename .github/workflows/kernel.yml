@@ -14,8 +14,6 @@ jobs:
       KERNEL_DIR: "common"
       KERNEL_REPO: "https://github.com/a4lippp/android_kernel_xiaomi_rock"
       KERNEL_BRANCH: "android12-5.10"
-      DEFCONFIG: "gki_defconfig"
-      LOCAL_VERSION: "-alippchito!"
       WORK_DIR: ${{ github.workspace }}
 
     steps:
@@ -53,18 +51,15 @@ jobs:
           tar -xzf clang.tar.gz -C prebuilts/clang/host/linux-x86/clang-r547379
           rm -f clang.tar.gz
 
-          # Remove unused clangs to save space
           rm -rf prebuilts/clang/host/linux-x86/clang-3289846
           rm -rf prebuilts/clang/host/linux-x86/clang-r450784e
           rm -rf prebuilts/clang/host/linux-x86/clang-stable
 
       - name: "Clone kernel source"
         run: |
-          # Clone after repo sync so common/ dir is clean
           git clone --recursive --branch ${{ env.KERNEL_BRANCH }} \
             ${{ env.KERNEL_REPO }} ${{ env.KERNEL_DIR }} --depth=1
 
-          # Patch build configs (must be after clone)
           sed -i \
             -e 's/^BRANCH=.*/BRANCH=android12-5.10/' \
             -e 's/^CLANG_VERSION=.*/CLANG_VERSION=r547379/' \
@@ -72,6 +67,15 @@ jobs:
 
           sed -i '/^POST_DEFCONFIG_CMDS="check_defconfig"/d' \
             ${{ env.KERNEL_DIR }}/build.config.rock || true
+
+      - name: "Clone vendor modules"
+        run: |
+          # EXT_MODULES di rock.config pakai path ../mediatek-modules/...
+          # jadi clone di sebelah common/ dengan nama mediatek-modules
+          git clone --depth=1 \
+            https://github.com/Asmodeus7999/MTK_kernel_modules \
+            -b rock-u-oss \
+            mediatek-modules
 
       - name: "Setup SukiSU-Ultra"
         working-directory: ${{ env.KERNEL_DIR }}
@@ -81,24 +85,27 @@ jobs:
       - name: "Configure kernel"
         working-directory: ${{ env.KERNEL_DIR }}
         run: |
-          CONFIG="arch/arm64/configs/${{ env.DEFCONFIG }}"
-          echo "CONFIG_LOCALVERSION=\"${{ env.LOCAL_VERSION }}\"" >> "$CONFIG"
-          echo "CONFIG_LOCALVERSION_AUTO=n" >> "$CONFIG"
+          # LOCALVERSION sudah di-set di kernel/configs/rock.config
+          # kita override di sini supaya pakai nama kita
+          sed -i \
+            -e 's/^CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION="-alippchito!"/' \
+            -e 's/^CONFIG_LOCALVERSION_AUTO=.*/CONFIG_LOCALVERSION_AUTO=n/' \
+            kernel/configs/rock.config
 
-          cat >> "$CONFIG" << 'EOF'
-          CONFIG_KSU=y
-          CONFIG_KPROBES=y
-          CONFIG_HAVE_KPROBES=y
-          CONFIG_KPROBE_EVENTS=y
-          CONFIG_OVERLAY_FS=y
-          CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y
-          CONFIG_TCP_CONG_BBR=y
-          CONFIG_TCP_CONG_WESTWOOD=y
-          CONFIG_DEFAULT_WESTWOOD=y
-          CONFIG_TMPFS_XATTR=y
-          CONFIG_TMPFS_POSIX_ACL=y
-          CONFIG_KALLSYMS=y
-          EOF
+          cat >> kernel/configs/rock.config << 'EOF'
+CONFIG_KSU=y
+CONFIG_KPROBES=y
+CONFIG_HAVE_KPROBES=y
+CONFIG_KPROBE_EVENTS=y
+CONFIG_OVERLAY_FS=y
+CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y
+CONFIG_TCP_CONG_BBR=y
+CONFIG_TCP_CONG_WESTWOOD=y
+CONFIG_DEFAULT_WESTWOOD=y
+CONFIG_TMPFS_XATTR=y
+CONFIG_TMPFS_POSIX_ACL=y
+CONFIG_KALLSYMS=y
+EOF
 
           echo 'KBUILD_CFLAGS += -Wno-implicit-function-declaration' >> Makefile
 
